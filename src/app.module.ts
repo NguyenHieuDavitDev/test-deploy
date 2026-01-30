@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { Product } from './products/product.entity';
+import { AppController } from './app.controller';
+
 
 function parseJdbcUrl(jdbcUrl: string) {
   const url = jdbcUrl.replace('jdbc:sqlserver://', '');
@@ -70,5 +72,6 @@ function parseJdbcUrl(jdbcUrl: string) {
       },
     }),
   ],
+  controllers: [AppController],
 })
 export class AppModule {}
