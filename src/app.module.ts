@@ -1,29 +1,22 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-
-import { ProductsModule } from './products/products.module';
+import { ConfigModule } from '@nestjs/config';
+import { Product } from './products/product.entity';
 
 function parseJdbcUrl(jdbcUrl: string) {
-  // Bỏ "jdbc:"
-  const url = jdbcUrl.replace('jdbc:', '');
+  const url = jdbcUrl.replace('jdbc:sqlserver://', '');
+  const [hostPort, ...params] = url.split(';');
+  const [host, port] = hostPort.split(':');
 
-  // tách host:port
-  const [serverPart, paramsPart] = url.split(';', 2);
-  const server = serverPart.replace('sqlserver://', '');
-
-  const [host, portStr] = server.split(':');
-
-  const params = new URLSearchParams(
-    paramsPart?.replace(/;/g, '&') ?? '',
-  );
+  const database =
+    params
+      .find(p => p.startsWith('databaseName='))
+      ?.split('=')[1] || '';
 
   return {
     host,
-    port: Number(portStr),
-    database: params.get('databaseName') || '',
-    encrypt: params.get('encrypt') === 'true',
-    trustServerCertificate: params.get('trustServerCertificate') === 'true',
+    port: Number(port),
+    database,
   };
 }
 
@@ -32,41 +25,50 @@ function parseJdbcUrl(jdbcUrl: string) {
     ConfigModule.forRoot({ isGlobal: true }),
 
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const jdbcUrl = config.get<string>('DB_URL');
-        if (!jdbcUrl) {
-          throw new Error('DB_URL is missing');
+      useFactory: () => {
+        // CASE 1: DÙNG DB_URL (Render)
+        if (process.env.DB_URL) {
+          const { host, port, database } = parseJdbcUrl(
+            process.env.DB_URL,
+          );
+
+          console.log(' Using DB_URL:', host, port, database);
+
+          return {
+            type: 'mssql',
+            host,
+            port,
+            username: process.env.DB_USERNAME,
+            password: process.env.DB_PASSWORD,
+            database,
+            entities: [Product],
+            synchronize: true,
+            options: {
+              encrypt: true,
+              trustServerCertificate: true,
+            },
+          };
         }
 
-        const db = parseJdbcUrl(jdbcUrl);
+        // CASE 2: DÙNG DB_HOST (local fallback)
+        console.log(' Using DB_HOST fallback');
 
         return {
           type: 'mssql',
-          host: db.host,
-          port: db.port,
-          username: config.get<string>('DB_USERNAME'),
-          password: config.get<string>('DB_PASSWORD'),
-          database: db.database,
-
-          entities: [__dirname + '/**/*.entity{.ts,.js}'],
+          host: process.env.DB_HOST,
+          port: Number(process.env.DB_PORT),
+          username: process.env.DB_USERNAME,
+          password: process.env.DB_PASSWORD,
+          database: process.env.DB_NAME,
+          entities: [Product],
           synchronize: true,
-
           options: {
-            encrypt: db.encrypt,
-            enableArithAbort: true,
-          },
-
-          extra: {
-            trustServerCertificate: db.trustServerCertificate,
-            charset: 'utf8',
+            encrypt: true,
+            trustServerCertificate: true,
           },
         };
       },
     }),
-
-    ProductsModule,
   ],
 })
 export class AppModule {}
