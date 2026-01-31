@@ -44,7 +44,7 @@ function parseJdbcUrl(jdbcUrl: string) {
       },
     }),
 
-    ProductsModule,
+      ProductsModule,
   ],
 })
 export class AppModule {}
