@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { Product } from './products/product.entity';
-import { AppController } from './app.controller';
 import { ProductsModule } from './products/products.module';
 
 function parseJdbcUrl(jdbcUrl: string) {
@@ -11,15 +10,9 @@ function parseJdbcUrl(jdbcUrl: string) {
   const [host, port] = hostPort.split(':');
 
   const database =
-    params
-      .find(p => p.startsWith('databaseName='))
-      ?.split('=')[1] || '';
+    params.find(p => p.startsWith('databaseName='))?.split('=')[1];
 
-  return {
-    host,
-    port: Number(port),
-    database,
-  };
+  return { host, port: Number(port), database };
 }
 
 @Module({
@@ -28,40 +21,19 @@ function parseJdbcUrl(jdbcUrl: string) {
 
     TypeOrmModule.forRootAsync({
       useFactory: () => {
-        // CASE 1: DÙNG DB_URL (Render)
-        if (process.env.DB_URL) {
-          const { host, port, database } = parseJdbcUrl(
-            process.env.DB_URL,
-          );
-
-          console.log(' Using DB_URL:', host, port, database);
-
-          return {
-            type: 'mssql',
-            host,
-            port,
-            username: process.env.DB_USERNAME,
-            password: process.env.DB_PASSWORD,
-            database,
-            entities: [Product],
-            synchronize: true,
-            options: {
-              encrypt: true,
-              trustServerCertificate: true,
-            },
-          };
+        if (!process.env.DB_URL) {
+          throw new Error('DB_URL is missing');
         }
 
-        // CASE 2: DÙNG DB_HOST (local fallback)
-        console.log(' Using DB_HOST fallback');
+        const { host, port, database } = parseJdbcUrl(process.env.DB_URL);
 
         return {
           type: 'mssql',
-          host: process.env.DB_HOST,
-          port: Number(process.env.DB_PORT),
+          host,
+          port,
           username: process.env.DB_USERNAME,
           password: process.env.DB_PASSWORD,
-          database: process.env.DB_NAME,
+          database,
           entities: [Product],
           synchronize: true,
           options: {
@@ -70,7 +42,9 @@ function parseJdbcUrl(jdbcUrl: string) {
           },
         };
       },
-    }), ProductsModule],
-  controllers: [AppController],
+    }),
+
+    ProductsModule,
+  ],
 })
 export class AppModule {}
